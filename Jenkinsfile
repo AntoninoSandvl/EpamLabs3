@@ -6,34 +6,13 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = ''
         IMAGE_TAG = 'v1.0'
-        HOST_PORT = ''
-        CONTAINER_NAME = ''
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
                 checkout scm
-            }
-        }
-
-        stage('Set variables by branch') {
-            steps {
-                script {
-                    if (env.BRANCH_NAME == 'main') {
-                        env.IMAGE_NAME = 'nodemain'
-                        env.HOST_PORT = '3000'
-                        env.CONTAINER_NAME = 'nodemain-container'
-                    } else if (env.BRANCH_NAME == 'dev') {
-                        env.IMAGE_NAME = 'nodedev'
-                        env.HOST_PORT = '3001'
-                        env.CONTAINER_NAME = 'nodedev-container'
-                    } else {
-                        error("Unsupported branch: ${env.BRANCH_NAME}")
-                    }
-                }
             }
         }
 
@@ -51,17 +30,46 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${env.IMAGE_NAME}:${env.IMAGE_TAG} ."
+                script {
+                    def imageName = ''
+                    if (env.BRANCH_NAME == 'main') {
+                        imageName = 'nodemain'
+                    } else if (env.BRANCH_NAME == 'dev') {
+                        imageName = 'nodedev'
+                    } else {
+                        error("Unsupported branch: ${env.BRANCH_NAME}")
+                    }
+
+                    sh "docker build -t ${imageName}:${env.IMAGE_TAG} ."
+                }
             }
         }
 
         stage('Deploy') {
             steps {
-                sh """
-                    docker stop ${env.CONTAINER_NAME} || true
-                    docker rm ${env.CONTAINER_NAME} || true
-                    docker run -d --name ${env.CONTAINER_NAME} -p ${env.HOST_PORT}:3000 ${env.IMAGE_NAME}:${env.IMAGE_TAG}
-                """
+                script {
+                    def imageName = ''
+                    def hostPort = ''
+                    def containerName = ''
+
+                    if (env.BRANCH_NAME == 'main') {
+                        imageName = 'nodemain'
+                        hostPort = '3000'
+                        containerName = 'nodemain-container'
+                    } else if (env.BRANCH_NAME == 'dev') {
+                        imageName = 'nodedev'
+                        hostPort = '3001'
+                        containerName = 'nodedev-container'
+                    } else {
+                        error("Unsupported branch: ${env.BRANCH_NAME}")
+                    }
+
+                    sh """
+                        docker stop ${containerName} || true
+                        docker rm ${containerName} || true
+                        docker run -d --name ${containerName} -p ${hostPort}:3000 ${imageName}:${env.IMAGE_TAG}
+                    """
+                }
             }
         }
     }
