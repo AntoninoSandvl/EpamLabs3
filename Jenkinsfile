@@ -45,22 +45,22 @@ pipeline {
 
         stage('Test') {
             steps {
-                sh 'npm test'
+                sh 'npm test -- --watchAll=false'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                sh "docker build -t ${env.IMAGE_NAME}:${env.IMAGE_TAG} ."
             }
         }
 
         stage('Deploy') {
             steps {
                 sh """
-                    docker ps -aq | xargs -r docker stop || true
-                    docker ps -aq | xargs -r docker rm || true
-                    docker run -d --name ${CONTAINER_NAME} --expose ${HOST_PORT} -p ${HOST_PORT}:3000 ${IMAGE_NAME}:${IMAGE_TAG}
+                    docker stop ${env.CONTAINER_NAME} || true
+                    docker rm ${env.CONTAINER_NAME} || true
+                    docker run -d --name ${env.CONTAINER_NAME} -p ${env.HOST_PORT}:3000 ${env.IMAGE_NAME}:${env.IMAGE_TAG}
                 """
             }
         }
