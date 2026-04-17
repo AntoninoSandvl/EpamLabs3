@@ -1,15 +1,19 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'node-7.8.0'
+    }
+
     environment {
-        APP_NAME = "cicd-app"
-        PORT = ""
-        CONTAINER_NAME = ""
-        IMAGE_NAME = ""
+        IMAGE_NAME = ''
+        IMAGE_TAG = 'v1.0'
+        HOST_PORT = ''
+        CONTAINER_NAME = ''
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
                 checkout scm
             }
@@ -19,13 +23,13 @@ pipeline {
             steps {
                 script {
                     if (env.BRANCH_NAME == 'main') {
-                        env.PORT = '3000'
-                        env.CONTAINER_NAME = 'cicd-main'
-                        env.IMAGE_NAME = 'cicd-main-image'
+                        env.IMAGE_NAME = 'nodemain'
+                        env.HOST_PORT = '3000'
+                        env.CONTAINER_NAME = 'nodemain-container'
                     } else if (env.BRANCH_NAME == 'dev') {
-                        env.PORT = '3001'
-                        env.CONTAINER_NAME = 'cicd-dev'
-                        env.IMAGE_NAME = 'cicd-dev-image'
+                        env.IMAGE_NAME = 'nodedev'
+                        env.HOST_PORT = '3001'
+                        env.CONTAINER_NAME = 'nodedev-container'
                     } else {
                         error("Unsupported branch: ${env.BRANCH_NAME}")
                     }
@@ -35,27 +39,95 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo "Building branch ${env.BRANCH_NAME}"
+                sh 'npm install'
             }
         }
 
         stage('Test') {
             steps {
-                echo "Running tests for ${env.BRANCH_NAME}"
+                sh 'npm test'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${env.IMAGE_NAME}:${env.BRANCH_NAME} ."
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
             }
         }
 
         stage('Deploy') {
             steps {
                 sh """
-                    docker rm -f ${env.CONTAINER_NAME} || true
-                    docker run -d --name ${env.CONTAINER_NAME} -p ${env.PORT}:3000 ${env.IMAGE_NAME}:${env.BRANCH_NAME}
+                    docker ps -aq | xargs -r docker stop || true
+                    docker ps -aq | xargs -r docker rm || true
+                    docker run -d --name ${CONTAINER_NAME} --expose ${HOST_PORT} -p ${HOST_PORT}:3000 ${IMAGE_NAME}:${IMAGE_TAG}
+                """
+            }
+        }
+    }
+}pipeline {
+    agent any
+
+    tools {
+        nodejs 'node-7.8.0'
+    }
+
+    environment {
+        IMAGE_NAME = ''
+        IMAGE_TAG = 'v1.0'
+        HOST_PORT = ''
+        CONTAINER_NAME = ''
+    }
+
+    stages {
+        stage('Checkout SCM') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Set variables by branch') {
+            steps {
+                script {
+                    if (env.BRANCH_NAME == 'main') {
+                        env.IMAGE_NAME = 'nodemain'
+                        env.HOST_PORT = '3000'
+                        env.CONTAINER_NAME = 'nodemain-container'
+                    } else if (env.BRANCH_NAME == 'dev') {
+                        env.IMAGE_NAME = 'nodedev'
+                        env.HOST_PORT = '3001'
+                        env.CONTAINER_NAME = 'nodedev-container'
+                    } else {
+                        error("Unsupported branch: ${env.BRANCH_NAME}")
+                    }
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'npm test'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sh """
+                    docker ps -aq | xargs -r docker stop || true
+                    docker ps -aq | xargs -r docker rm || true
+                    docker run -d --name ${CONTAINER_NAME} --expose ${HOST_PORT} -p ${HOST_PORT}:3000 ${IMAGE_NAME}:${IMAGE_TAG}
                 """
             }
         }
